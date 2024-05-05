@@ -1,3 +1,5 @@
+use std::thread::current;
+
 const HOR_LINE: char = '\u{2500}';
 const VER_LINE: char = '\u{2502}';
 
@@ -15,6 +17,7 @@ pub struct Canvas {
 }
 
 pub struct Component {
+    pub title: String,
     pub x: usize,
     pub y: usize,
     pub width: usize,
@@ -23,20 +26,18 @@ pub struct Component {
 
 impl Canvas {
     pub fn render(&self) -> String {
-        let mut out = self.prepare_empty();
+        let mut out = self.prepare_background();
         for component in &self.components {
             let tl = (component.x, component.y);
-            let tr = (tl.0 + component.width, tl.1);
-            let bl = (tl.0, tl.1 + component.height);
+            let tr = (tl.0 + component.width - 1, tl.1);
+            let bl = (tl.0, tl.1 + component.height - 1);
             let br = (tr.0, bl.1);
 
+            self.set_chars_vertically((tl.0, tl.1+1), (component.height-2) as usize, VER_LINE, &mut out);
+            self.set_chars_vertically((tr.0, tr.1+1), (component.height-2) as usize, VER_LINE, &mut out);            
 
-            self.set_chars_vertically(tl, component.height as usize, VER_LINE, &mut out);
-
-            self.set_chars_horizontally(tl, component.width as usize, HOR_LINE, &mut out);
-            self.set_chars_horizontally(bl, component.width as usize, HOR_LINE, &mut out);
-
-            self.set_chars_vertically(tr, component.height as usize, VER_LINE, &mut out);            
+            self.set_chars_horizontally((tl.0+1, tl.1), (component.width-2) as usize, HOR_LINE, &mut out);
+            self.set_chars_horizontally((bl.0+1, bl.1), (component.width-2) as usize, HOR_LINE, &mut out);
 
             self.set_char_at(tl, CORNER_TL, &mut out);
             self.set_char_at(tr, CORNER_TR, &mut out);
@@ -47,9 +48,20 @@ impl Canvas {
         out
     }
 
-    pub fn prepare_empty(&self) -> String {
+    pub fn prepare_counted(&self) -> String {
         let mut out = String::new();
+        for _ in 0..self.height {
+            let mut count = 0;
+            for _ in 0..self.width {
+                out.push(char::from_digit(count % 10, 10).unwrap());
+                count += 1;
+            }
+        }
+        out
+    }
 
+    pub fn prepare_background(&self) -> String {
+        let mut out = String::new();
         for _ in 0..self.height {
             for _ in 0..self.width {
                 out.push(self.background);
@@ -65,9 +77,6 @@ impl Canvas {
 
     pub fn set_chars_horizontally(&self, start_pos: (usize, usize), len: usize, c: char, s: &mut String) {
         let index: usize = start_pos.1 * self.width as usize + start_pos.0;
-        if index >= s.len() {
-            return
-        }
 
         let mut chars_indices = s.char_indices();
         let (first_pos, first_ch) = chars_indices.nth(index).unwrap();
@@ -83,21 +92,37 @@ impl Canvas {
     }
 
     pub fn set_chars_vertically(&self, start_pos: (usize, usize), len: usize, c: char, s: &mut String) {
-        let index: usize = start_pos.1 * self.width as usize + start_pos.0;
+         /*
+         * The index_offset exists to correct the character positions in the string
+         * 
+         * Example: "Hello World"
+         * 
+         * If we want to replace every fifth character, we will replace the 'o' in "Hello" and the 'l' in "World"
+         * Let's say, we want to insert a character that takes up three bytes in unicode.
+         * Every character after the 'o' will be shifted to the right by two bytes, 
+         * since the new character takes up two bytes more than the 'o'.
+         * This means that if we want to update the next character (the 'l'), 
+         * we will have to change the array two bytes to the right of its original position.
+         */
+        
+        let start_index: usize = start_pos.1 * self.width as usize + start_pos.0;
 
         let mut chars_indices = s.char_indices();
-        let mut chars_indices_to_replace = vec![
-            chars_indices.nth(index).unwrap(),
+
+        let first_elem = chars_indices.nth(start_index).unwrap();
+        let mut byte_offset: isize = c.len_utf8() as isize - first_elem.1.len_utf8() as isize;
+
+        let mut to_replace = vec![
+            first_elem,
         ];
         
         for _ in 1..len {
-            let next_result = chars_indices.nth(self.width as usize + 1);
-            if let Some(next) = next_result {
-                chars_indices_to_replace.push(next);
-            }
+            let next = chars_indices.nth(self.width as usize - 1).unwrap();
+            to_replace.push(((next.0 as isize + byte_offset) as usize, next.1));
+            byte_offset += c.len_utf8() as isize - next.1.len_utf8() as isize;
         }
 
-        for (pos, ch) in chars_indices_to_replace {
+        for (pos, ch) in to_replace {
             s.replace_range(pos..pos+ch.len_utf8(), &c.to_string());
         }
     }

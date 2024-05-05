@@ -4,6 +4,14 @@ mod term_io;
 mod canvas;
 
 fn main() {
+
+    let test = String::from("01234567890123456789");
+    let mut chars_indices = test.char_indices();
+    let c = chars_indices.nth(3).unwrap();
+    let c2 = chars_indices.nth(10).unwrap();
+
+    println!("{} {}", c.1, c2.1);
+
     let terminal_size = termion::terminal_size().unwrap();
 
     let term_width = terminal_size.0;
@@ -17,6 +25,7 @@ fn main() {
         background: ' ',
         components: vec![
             Component {
+                title: String::from("Window"),
                 x: 0,
                 y: 0,
                 width: 5,
