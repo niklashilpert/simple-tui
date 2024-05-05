@@ -1,17 +1,10 @@
-use std::thread::current;
+use std::char;
 
-const HOR_LINE: char = '\u{2500}';
-const VER_LINE: char = '\u{2502}';
-
-const CORNER_TL: char = '\u{250C}';
-const CORNER_TR: char = '\u{2510}';
-const CORNER_BL: char = '\u{2514}';
-const CORNER_BR: char = '\u{2518}';
-
+use crate::border;
 
 pub struct Canvas {
-    pub width: u16,
-    pub height: u16,
+    pub width: usize,
+    pub height: usize,
     pub components: Vec<Component>,
     pub background: char,
 }
@@ -22,42 +15,15 @@ pub struct Component {
     pub y: usize,
     pub width: usize,
     pub height: usize,
+    pub bold: bool,
 }
 
 impl Canvas {
     pub fn render(&self) -> String {
         let mut out = self.prepare_background();
         for component in &self.components {
-            let tl = (component.x, component.y);
-            let tr = (tl.0 + component.width - 1, tl.1);
-            let bl = (tl.0, tl.1 + component.height - 1);
-            let br = (tr.0, bl.1);
-
-            self.draw_line_vertically((tl.0, tl.1+1), (component.height-2) as usize, VER_LINE, &mut out);
-            self.draw_line_vertically((tr.0, tr.1+1), (component.height-2) as usize, VER_LINE, &mut out);            
-
-            self.draw_line_horizontally((tl.0+1, tl.1), (component.width-2) as usize, HOR_LINE, &mut out);
-            self.draw_line_horizontally((bl.0+1, bl.1), (component.width-2) as usize, HOR_LINE, &mut out);
-
-            self.set_char_at(tl, CORNER_TL, &mut out);
-            self.set_char_at(tr, CORNER_TR, &mut out);
-            self.set_char_at(bl, CORNER_BL, &mut out);
-            self.set_char_at(br, CORNER_BR, &mut out);   
-
-            self.set_string_horizontally((tl.0 + 2, tl.1), &component.title, &mut out)
-        }
-
-        out
-    }
-
-    pub fn prepare_counted(&self) -> String {
-        let mut out = String::new();
-        for _ in 0..self.height {
-            let mut count = 0;
-            for _ in 0..self.width {
-                out.push(char::from_digit(count % 10, 10).unwrap());
-                count += 1;
-            }
+            self.draw_border(component, &mut out);
+            self.draw_string(component.x+2, component.y, &component.title, &mut out);
         }
         out
     }
@@ -72,64 +38,96 @@ impl Canvas {
         out
     }
 
-    pub fn set_char_at(&self, pos: (usize, usize), c: char, s: &mut String) {
-        let res = self.draw_line_horizontally(pos, 1, c, s);
-        res
-    }
-
-    pub fn set_string_horizontally(&self, start_pos: (usize, usize), new: &str, s: &mut String) {
-        let index: usize = start_pos.1 * self.width as usize + start_pos.0;
-
-        let mut chars_indices = s.char_indices();
-        let (first_pos, first_ch) = chars_indices.nth(index).unwrap();
-        let mut utf8_len: usize = first_ch.len_utf8();
-        for _ in 1..new.chars().count() {
-            utf8_len += chars_indices.next().unwrap().1.len_utf8();
+    pub fn draw_string(&self, x: usize, y: usize, new: &str, s: &mut String) {
+        let mut offset = 0;
+        for ch in new.chars() {
+            self.set_char_at(x + offset, y, ch, s);
+            offset += 1;
         }
-
-        s.replace_range(
-            first_pos..first_pos+utf8_len,
-            new,
-        );
     }
 
-    pub fn draw_line_horizontally(&self, start_pos: (usize, usize), len: usize, c: char, s: &mut String) {
-        self.set_string_horizontally(start_pos, &c.to_string().repeat(len), s)
-    }
-
-    pub fn draw_line_vertically(&self, start_pos: (usize, usize), len: usize, c: char, s: &mut String) {
-         /*
-         * The index_offset exists to correct the character positions in the string
-         * 
-         * Example: "Hello World"
-         * 
-         * If we want to replace every fifth character, we will replace the 'o' in "Hello" and the 'l' in "World"
-         * Let's say, we want to insert a character that takes up three bytes in unicode.
-         * Every character after the 'o' will be shifted to the right by two bytes, 
-         * since the new character takes up two bytes more than the 'o'.
-         * This means that if we want to update the next character (the 'l'), 
-         * we will have to change the array two bytes to the right of its original position.
-         */
+    pub fn draw_border(&self, component: &Component, s: &mut String) {
+        let sx = component.x;
+        let ex = component.x + component.width;
+        let sy = component.y;
+        let ey = component.y + component.height;
         
-        let start_index: usize = start_pos.1 * self.width as usize + start_pos.0;
-
-        let mut chars_indices = s.char_indices();
-
-        let first_elem = chars_indices.nth(start_index).unwrap();
-        let mut byte_offset: isize = c.len_utf8() as isize - first_elem.1.len_utf8() as isize;
-
-        let mut to_replace = vec![
-            first_elem,
-        ];
-        
-        for _ in 1..len {
-            let next = chars_indices.nth(self.width as usize - 1).unwrap();
-            to_replace.push(((next.0 as isize + byte_offset) as usize, next.1));
-            byte_offset += c.len_utf8() as isize - next.1.len_utf8() as isize;
+        for x in sx..ex {
+            self.set_border(x, sy, s);
+            self.set_border(x, ey-1, s)
         }
 
-        for (pos, ch) in to_replace {
-            s.replace_range(pos..pos+ch.len_utf8(), &c.to_string());
+        for y in sy+1..ey {
+            self.set_border(sx, y, s);
+            self.set_border(ex-1, y, s);
         }
     }
+
+    fn set_border(&self, x: usize, y: usize, s: &mut String) {
+        self.set_char_at(
+            x, 
+            y, 
+            self.get_border_char(x, y), 
+            s
+        )
+    } 
+
+    fn set_char_at(&self, x: usize, y: usize, c: char, s: &mut String) {
+        let char_index = y * self.width + x;
+        let (pos, old_char) = s.char_indices().nth(char_index).unwrap();
+        let byte_count = old_char.len_utf8();
+        let char_str = &c.to_string();
+        s.replace_range(pos..pos + byte_count, char_str)
+    }
+
+    fn get_border_char(&self, x: usize, y: usize) -> char {
+        let top_neighbor = if y > 0 {
+            self.is_border(x, y-1)
+        } else {
+            None
+        };
+
+        let left_neighbor = if x > 0 {
+            self.is_border(x-1, y)
+        } else {
+            None
+        };
+
+        let bottom_neighbor = if y < self.height-1 {
+            self.is_border(x, y+1)
+        } else {
+            None
+        };
+
+        let right_neighbor = if x < self.width-1 {
+            self.is_border(x+1, y)
+        } else {
+            None
+        };
+
+        border::get_tile(
+            self,
+            top_neighbor, 
+            left_neighbor, 
+            bottom_neighbor, 
+            right_neighbor
+        )
+    }
+
+    fn is_border(&self, x: usize, y: usize) -> Option<bool> {
+        for component in &self.components {
+            let sx = component.x;
+            let ex = component.x + component.width;
+            let sy = component.y;
+            let ey = component.y + component.height;
+
+            if sx <= x && x < ex && (sy == y || ey-1 == y) {
+                return Some(component.bold);
+            } else if sy <= y && y < ey && (sx == x || ex-1 == x) {
+                return Some(component.bold);
+            } 
+        }
+        return None
+    }
+
 }

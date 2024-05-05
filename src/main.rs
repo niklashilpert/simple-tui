@@ -1,7 +1,10 @@
+use std::{thread, time::Duration};
+
 use crate::canvas::{Canvas, Component};
 
 mod term_io;
 mod canvas;
+mod border;
 
 fn main() {
 
@@ -19,9 +22,9 @@ fn main() {
 
     println!("{}, {}", term_width, term_height);
 
-    let canvas = Canvas {
-        width: term_width,
-        height: term_height,
+    let mut canvas = Canvas {
+        width: term_width as usize,
+        height: term_height as usize,
         background: ' ',
         components: vec![
             Component {
@@ -30,14 +33,30 @@ fn main() {
                 y: 0,
                 width: 20,
                 height: 5,
+                bold: false,
+            },
+            Component {
+                title: String::from("Window 2"),
+                x: 25,
+                y: 4,
+                width: 15,
+                height: 6,
+                bold: true,
             }
         ]
     };
 
-    print!("{}", canvas.render());
+    loop {
+        let terminal_size = termion::terminal_size().unwrap();
 
-    _ = term_io::flush();
+        canvas.width = terminal_size.0 as usize;
+        canvas.height = terminal_size.1 as usize;
+        println!();
 
-    term_io::await_input();
+        print!("{}", canvas.render());
+
+        print!("{esc}c", esc = 27 as char);
+        thread::sleep(Duration::from_millis(30))
+    }
 }
 
