@@ -28,7 +28,7 @@ fn main() {
                 title: String::from("Window"),
                 x: 0,
                 y: 0,
-                width: 5,
+                width: 20,
                 height: 5,
             }
         ]

@@ -33,16 +33,18 @@ impl Canvas {
             let bl = (tl.0, tl.1 + component.height - 1);
             let br = (tr.0, bl.1);
 
-            self.set_chars_vertically((tl.0, tl.1+1), (component.height-2) as usize, VER_LINE, &mut out);
-            self.set_chars_vertically((tr.0, tr.1+1), (component.height-2) as usize, VER_LINE, &mut out);            
+            self.draw_line_vertically((tl.0, tl.1+1), (component.height-2) as usize, VER_LINE, &mut out);
+            self.draw_line_vertically((tr.0, tr.1+1), (component.height-2) as usize, VER_LINE, &mut out);            
 
-            self.set_chars_horizontally((tl.0+1, tl.1), (component.width-2) as usize, HOR_LINE, &mut out);
-            self.set_chars_horizontally((bl.0+1, bl.1), (component.width-2) as usize, HOR_LINE, &mut out);
+            self.draw_line_horizontally((tl.0+1, tl.1), (component.width-2) as usize, HOR_LINE, &mut out);
+            self.draw_line_horizontally((bl.0+1, bl.1), (component.width-2) as usize, HOR_LINE, &mut out);
 
             self.set_char_at(tl, CORNER_TL, &mut out);
             self.set_char_at(tr, CORNER_TR, &mut out);
             self.set_char_at(bl, CORNER_BL, &mut out);
             self.set_char_at(br, CORNER_BR, &mut out);   
+
+            self.set_string_horizontally((tl.0 + 2, tl.1), &component.title, &mut out)
         }
 
         out
@@ -71,27 +73,31 @@ impl Canvas {
     }
 
     pub fn set_char_at(&self, pos: (usize, usize), c: char, s: &mut String) {
-        let res = self.set_chars_horizontally(pos, 1, c, s);
+        let res = self.draw_line_horizontally(pos, 1, c, s);
         res
     }
 
-    pub fn set_chars_horizontally(&self, start_pos: (usize, usize), len: usize, c: char, s: &mut String) {
+    pub fn set_string_horizontally(&self, start_pos: (usize, usize), new: &str, s: &mut String) {
         let index: usize = start_pos.1 * self.width as usize + start_pos.0;
 
         let mut chars_indices = s.char_indices();
         let (first_pos, first_ch) = chars_indices.nth(index).unwrap();
         let mut utf8_len: usize = first_ch.len_utf8();
-        for _ in 1..len {
+        for _ in 1..new.chars().count() {
             utf8_len += chars_indices.next().unwrap().1.len_utf8();
         }
 
         s.replace_range(
             first_pos..first_pos+utf8_len,
-            &c.to_string().repeat(len),
+            new,
         );
     }
 
-    pub fn set_chars_vertically(&self, start_pos: (usize, usize), len: usize, c: char, s: &mut String) {
+    pub fn draw_line_horizontally(&self, start_pos: (usize, usize), len: usize, c: char, s: &mut String) {
+        self.set_string_horizontally(start_pos, &c.to_string().repeat(len), s)
+    }
+
+    pub fn draw_line_vertically(&self, start_pos: (usize, usize), len: usize, c: char, s: &mut String) {
          /*
          * The index_offset exists to correct the character positions in the string
          * 
