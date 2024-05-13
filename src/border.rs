@@ -1,19 +1,10 @@
-use crate::canvas::Canvas;
-
 const TOP_FLAG: i32 = 0b1000;
 const LEFT_FLAG: i32 = 0b100;
 const BOTTOM_FLAG: i32 = 0b10;
 const RIGHT_FLAG: i32 = 1;
 
-pub fn get_tile(
-    canvas: &Canvas,
-    top_opt: Option<bool>, 
-    left_opt: Option<bool>,
-    bottom_opt: Option<bool>, 
-    right_opt: Option<bool>,
-) -> char {
-    let (tile_flags, bold_flags) = convert_to_flags(top_opt, left_opt, bottom_opt, right_opt);
-
+pub fn get_tile(tile_flags: i32, bold_flags: i32, default: char) -> char {
+    
     let t = is_flag_set(TOP_FLAG, tile_flags);
     let l = is_flag_set(LEFT_FLAG, tile_flags);
     let b = is_flag_set(BOTTOM_FLAG, tile_flags);
@@ -185,42 +176,10 @@ pub fn get_tile(
     } else if r { 
         '╶'
     } else {
-        canvas.background
+        default
     }
 }
 
 pub fn is_flag_set(flag: i32, flags: i32) -> bool {
     flags & flag == flag
-}
-
-pub fn convert_to_flags(top_opt: Option<bool>, left_opt: Option<bool>, bottom_opt: Option<bool>, right_opt: Option<bool>) -> (i32, i32) {
-    let mut tile_flags = 0;
-    let mut bold_flags = 0;
-
-    if let Some(bold) = top_opt {
-        tile_flags += 1 << 3;
-        if bold {
-            bold_flags += 1 << 3;
-        }
-    }
-    if let Some(bold) = left_opt {
-        tile_flags += 1 << 2;
-        if bold {
-            bold_flags += 1 << 2;
-        }
-    }
-    if let Some(bold) = bottom_opt {
-        tile_flags += 1 << 1;
-        if bold {
-            bold_flags += 1 << 1;
-        }
-    }
-    if let Some(bold) = right_opt {
-        tile_flags += 1;
-        if bold {
-            bold_flags += 1;
-        }
-    }
-    
-    (tile_flags, bold_flags)
 }

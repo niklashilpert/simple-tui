@@ -28,7 +28,7 @@ impl Canvas {
         out
     }
 
-    pub fn prepare_background(&self) -> String {
+    fn prepare_background(&self) -> String {
         let mut out = String::new();
         for _ in 0..self.height {
             for _ in 0..self.width {
@@ -38,7 +38,7 @@ impl Canvas {
         out
     }
 
-    pub fn draw_string(&self, x: usize, y: usize, new: &str, s: &mut String) {
+    fn draw_string(&self, x: usize, y: usize, new: &str, s: &mut String) {
         let mut offset = 0;
         for ch in new.chars() {
             self.set_char_at(x + offset, y, ch, s);
@@ -46,7 +46,7 @@ impl Canvas {
         }
     }
 
-    pub fn draw_border(&self, component: &Component, s: &mut String) {
+    fn draw_border(&self, component: &Component, s: &mut String) {
         let sx = component.x;
         let ex = component.x + component.width;
         let sy = component.y;
@@ -64,12 +64,7 @@ impl Canvas {
     }
 
     fn set_border(&self, x: usize, y: usize, s: &mut String) {
-        self.set_char_at(
-            x, 
-            y, 
-            self.get_border_char(x, y), 
-            s
-        )
+        self.set_char_at(x, y, self.get_border_char(x, y), s)
     } 
 
     fn set_char_at(&self, x: usize, y: usize, c: char, s: &mut String) {
@@ -80,54 +75,47 @@ impl Canvas {
         s.replace_range(pos..pos + byte_count, char_str)
     }
 
-    fn get_border_char(&self, x: usize, y: usize) -> char {
-        let top_neighbor = if y > 0 {
-            self.is_border(x, y-1)
-        } else {
-            None
-        };
+    fn get_border_char(&self, x: usize, y: usize) -> char {        
+        let mut connections_map = 0b0000;
+        let mut bold_map = 0b0000;
 
-        let left_neighbor = if x > 0 {
-            self.is_border(x-1, y)
-        } else {
-            None
-        };
-
-        let bottom_neighbor = if y < self.height-1 {
-            self.is_border(x, y+1)
-        } else {
-            None
-        };
-
-        let right_neighbor = if x < self.width-1 {
-            self.is_border(x+1, y)
-        } else {
-            None
-        };
-
-        border::get_tile(
-            self,
-            top_neighbor, 
-            left_neighbor, 
-            bottom_neighbor, 
-            right_neighbor
-        )
-    }
-
-    fn is_border(&self, x: usize, y: usize) -> Option<bool> {
         for component in &self.components {
-            let sx = component.x;
-            let ex = component.x + component.width;
-            let sy = component.y;
-            let ey = component.y + component.height;
+            let directions_map = component.get_border_directions(x, y);
 
-            if sx <= x && x < ex && (sy == y || ey-1 == y) {
-                return Some(component.bold);
-            } else if sy <= y && y < ey && (sx == x || ex-1 == x) {
-                return Some(component.bold);
-            } 
+            connections_map |= directions_map;
+            bold_map |= if component.bold { directions_map } else { 0 };
         }
-        return None
+
+        border::get_tile(connections_map as i32, bold_map as i32, self.background)
     }
 
+    
+}
+
+impl Component {
+    fn get_border_directions(&self, x: usize, y: usize) -> usize {
+        let sx = self.x;
+        let ex = sx + self.width - 1;
+        let sy = self.y;
+        let ey = sy + self.height - 1;
+
+        // 0 = false; 1 = true
+        // Syntax: top left bottom right
+
+        return if (x, y) == (sx, sy) {
+            0b0011
+        } else if (x, y) == (ex, sy) {
+            0b0110
+        } else if (x, y) == (ex, ey) {
+            0b1100
+        } else if (x, y) == (sx, ey) {
+            0b1001
+        } else if (y == sy || y == ey) && sx <= x && x < ex {
+            0b0101
+        } else if (x == sx || x == ex) && sy <= y && y < ey {
+            0b1010
+        } else {
+            0b0000
+        };
+    }
 }
